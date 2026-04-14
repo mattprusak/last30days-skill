@@ -158,6 +158,25 @@ claude plugin update last30days@last30days-skill
 clawhub install last30days-official
 ```
 
+### Gemini CLI
+
+Gemini CLI supports installing extensions from GitHub repositories, but as of Gemini CLI v0.9.0 there is an upstream installer bug that can fail with:
+
+`Configuration file not found at /tmp/gemini-extensionXXXXXX/gemini-extension.json`
+
+even when `gemini-extension.json` exists at the repo root.
+
+Upstream bug:
+- https://github.com/google-gemini/gemini-cli/issues/11452
+
+Workarounds:
+1) Clone locally, then install from the local path
+   ```bash
+   git clone https://github.com/mvanhorn/last30days-skill
+   gemini extensions install ./last30days-skill
+   ```
+2) If GitHub install fails, use the OpenClaw or Claude Code install paths above.
+
 ### Manual
 ```bash
 git clone https://github.com/mvanhorn/last30days-skill.git ~/.claude/skills/last30days
