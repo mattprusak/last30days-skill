@@ -12,7 +12,7 @@
 
 **An AI agent-led search engine scored by upvotes, likes, and real money - not editors.**
 
-This README tracks the current v3 pipeline. The runtime skill spec lives in [skills/last30days/SKILL.md](skills/last30days/SKILL.md), which is the source of truth for the latest command and setup behavior.
+This README tracks the current v3 pipeline. The runtime skill spec lives in [SKILL.md](SKILL.md), which is the source of truth for the latest command and setup behavior.
 
 Claude Code:
 ```
@@ -96,6 +96,28 @@ The synthesis ranks by what real people actually engaged with. Social relevancy,
 
 ## What v3 Changed
 
+### Shareable HTML briefs
+
+Ask for an HTML brief and the skill saves a self-contained, dark-mode, print-friendly file you can drop into Slack, email, or Notion. No raw markdown leaks. Inline CSS, system-font fallbacks behind Inter and JetBrains Mono. No JavaScript. Works offline.
+
+```
+/last30days OpenClaw --emit=html
+```
+
+or just ask in plain language:
+
+```
+/last30days OpenClaw, give me a shareable HTML brief
+/last30days Cursor IDE for slack
+/last30days Anthropic earnings export as html
+```
+
+The skill emits the synthesis in chat as usual AND saves a brief to `${LAST30DAYS_MEMORY_DIR}/{topic}-brief.html` (defaults to `~/Documents/Last30Days/`). The chat response ends with the file path so you can `open` it or drag it into a message.
+
+What's in the file: badge, inline metadata line, the model's synthesis verbatim with all citations, the engine footer (✅ All agents reported back! tree), and a colophon noting the topic + how to re-run. Data quality warnings (degraded run, thin evidence, etc.) stay in the engine's stderr logs; they never leak into the shareable artifact.
+
+For direct CLI use without the model in the loop, the engine also accepts `--synthesis-file PATH` to convert any markdown synthesis to HTML.
+
 ### Intelligent search: the killer feature
 
 The v3 engine doesn't just search for your topic. It figures out *where* to search before the search begins. Type "OpenClaw" and the engine resolves @steipete (Peter Steinberger, the creator), r/openclaw, r/ClaudeCode, and the right YouTube channels and TikTok hashtags - all via a new Python pre-research brain built by [@j-sperling](https://github.com/j-sperling). The old engine searched keywords. The new engine understands your topic first, then searches the right people and communities.
@@ -114,6 +136,10 @@ When the same story appears on Reddit, X, and YouTube, v3 merges them into one c
 
 "CLI vs MCP" used to run three serial passes (12+ minutes). v3 runs one pass with entity-aware subqueries for both sides simultaneously. Same depth, 3 minutes.
 
+### Auto-discovered competitor comparisons
+
+`/last30days OpenAI --competitors` tells the hosting reasoning model to discover the top 2 peers via WebSearch (Anthropic, xAI), run Step 0.55 per entity, and invoke the engine with `"OpenAI vs Anthropic vs xAI"` and a per-entity `--competitors-plan` JSON. The engine fans out 3 full pipelines in parallel, saves a `*-raw.md` file per entity, and merges them into a 3-way comparison. Same mechanics power `/last30days "OpenAI vs Anthropic vs xAI"` directly.
+
 ### GitHub person-mode
 
 When the topic is a person, the engine switches from keyword search to author-scoped queries. Instead of "who mentioned this name in an issue body," it answers: what are they shipping and where is it landing?
@@ -128,7 +154,7 @@ Say "eli5 on" after any research run. The synthesis rewrites in plain language. 
 
 - **Free Reddit comments.** Public JSON gives you threads + top comments with upvote counts. No API key, no ScrapeCreators. Just works.
 - **YouTube transcripts that actually work.** Widened candidate pool 3x past music videos to reach talk/review content with captions.
-- **Threads, Pinterest, YouTube comments.** Opt-in sources via ScrapeCreators. Set `INCLUDE_SOURCES=tiktok,instagram` and add threads, pinterest, youtube_comments for more.
+- **Threads, Pinterest, YouTube + TikTok comments.** Opt-in sources via ScrapeCreators. Set `INCLUDE_SOURCES=tiktok,instagram` and add threads, pinterest, youtube_comments, tiktok_comments for more. `youtube_comments` and `tiktok_comments` surface top comments with vote counts the same way Reddit does.
 - **Perplexity Sonar.** Grounded web search with citations via OpenRouter. Add `OPENROUTER_API_KEY` to unlock.
 - **Polymarket noise filtering.** Common-word disambiguation prevents "Apple" from matching "Will Apple release a car?"
 - **Resilient Reddit.** Timeout budgets and runtime fallback. One slow thread doesn't kill the whole run.
@@ -141,46 +167,51 @@ Say "eli5 on" after any research run. The synthesis rewrites in plain language. 
 
 ## Install
 
+| Surface | Install |
+|---------|---------|
+| **claude.ai** (web) | [Download `last30days.skill`](https://github.com/mvanhorn/last30days-skill/releases/latest/download/last30days.skill) and upload via Settings > Capabilities > Skills > + |
+| **Claude Code** | `/plugin marketplace add mvanhorn/last30days-skill` |
+| **OpenClaw** | `clawhub install last30days-official` |
+| **Gemini CLI** | Clone then `gemini extensions install ./last30days-skill` (see below) |
+
+### claude.ai (web)
+
+1. [Download `last30days.skill`](https://github.com/mvanhorn/last30days-skill/releases/latest/download/last30days.skill) from the latest release
+2. Go to [claude.ai Settings > Capabilities > Skills](https://claude.ai/settings/capabilities)
+3. Click the `+` button in the Skills panel and drop the file in
+
+Enable "Code execution and file creation" under Capabilities first - skills won't run without it.
+
 ### Claude Code
 
-#### Install
 ```
 /plugin marketplace add mvanhorn/last30days-skill
 ```
 
-#### Update
-```
-claude plugin update last30days@last30days-skill
-```
+Update later with `claude plugin update last30days@last30days-skill`.
 
 ### OpenClaw
+
 ```bash
 clawhub install last30days-official
 ```
 
 ### Gemini CLI
 
-Gemini CLI supports installing extensions from GitHub repositories, but as of Gemini CLI v0.9.0 there is an upstream installer bug that can fail with:
+Gemini CLI v0.9.0 has an upstream installer bug that can fail with `Configuration file not found at /tmp/gemini-extensionXXXXXX/gemini-extension.json` ([upstream issue](https://github.com/google-gemini/gemini-cli/issues/11452)). Workaround:
 
-`Configuration file not found at /tmp/gemini-extensionXXXXXX/gemini-extension.json`
+```bash
+git clone https://github.com/mvanhorn/last30days-skill
+gemini extensions install ./last30days-skill
+```
 
-even when `gemini-extension.json` exists at the repo root.
+### Manual (developer)
 
-Upstream bug:
-- https://github.com/google-gemini/gemini-cli/issues/11452
-
-Workarounds:
-1) Clone locally, then install from the local path
-   ```bash
-   git clone https://github.com/mvanhorn/last30days-skill
-   gemini extensions install ./last30days-skill
-   ```
-2) If GitHub install fails, use the OpenClaw or Claude Code install paths above.
-
-### Manual
 ```bash
 git clone https://github.com/mvanhorn/last30days-skill.git ~/.claude/skills/last30days
 ```
+
+Or build the claude.ai `.skill` file from source: `bash skills/last30days/scripts/build-skill.sh` produces `dist/last30days.skill`.
 
 Reddit (with comments), Hacker News, Polymarket, and GitHub work immediately. Zero configuration. Run `/last30days` once and the setup wizard unlocks more sources in 30 seconds.
 
